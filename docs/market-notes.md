@@ -32,3 +32,36 @@ Only the large, liquid markets are worth modeling: NYC, LA, SF, and Miami. Every
 - Use bid/ask and Kalshi fees, never midpoints.
 - Paper trade before any real money.
 - Do not tune on the same days used to report results.
+
+## Findings from the Kalshi API (2026-10-20)
+
+### Access
+- Public market data needs no API key: `GET https://api.elections.kalshi.com/trade-api/v2/series`, `/markets`, and `/historical/markets` all answered unauthenticated.
+- Live `/markets` only covers markets settled after the cutoff from `GET /historical/cutoff` (2026-08-21 at time of writing). Anything older is under `/historical/markets`, which accepts `series_ticker` and cursor pagination (limit 1000).
+- Candlesticks and trades not yet tested. Trade history cutoff is also 2026-08-21.
+
+### Settlement rules (rain)
+- "Trace" amounts (T) and missing daily precipitation values count as 0 inches. So Yes needs measurable rain.
+- Official source is the Weather Company's Daily Climate Report (weather.com/kalshi), "latest version of the data". Settlement lands about 15:25 UTC the day after.
+- Fee type is quadratic.
+
+### Series are messy
+Several ticker generations exist per city. Do not assume one series per market:
+
+| Market | Series | History seen |
+|---|---|---|
+| NYC rain | `KXRAINNYC` | 2021-09 to 2026-07 (895 markets) |
+| Multi-city rain (about 35 cities, incl. NYC) | `KXRAIN`, tickers like `KXRAIN-26AUG19-SFO` | 2026-07 onward |
+| NYC rain, new daily | `KXRAINDNYC` | only 1 settled market so far |
+| NYC high temp | `KXHIGHNY` | 2021-08 to now (9,406 markets) |
+| Miami high temp | `KXHIGHMIA` | 2023-05 to now |
+| LA high temp | `KXHIGHLAX` | 2025-01 to now |
+| SF high temp | `KXHIGHTSFO` | 2026-01 to now |
+
+LA, SF, and Miami rain look monthly (`KXRAINLAXM`, `KXRAINSFOM`, `KXRAINMIAM`), not daily. Daily rain for those cities is only inside the multi-city `KXRAIN` series.
+
+### What this means for the backtest
+- Forecast archives (Open-Meteo previous runs) start 2024-01, so the backtestable window is the overlap with market history.
+- NYC is the deepest (about 2.8 years of overlap), then Miami (about 2.4), LA (about 1.7), SF (about 9 months).
+- Start with NYC, then Miami. LA and SF are thin for now.
+- Rain history needs stitching across `KXRAINNYC` and `KXRAIN`. Check whether the rule text changed between them.
