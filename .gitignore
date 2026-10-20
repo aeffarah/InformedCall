@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# InformedCall
+secrets/
+*.pem
+data/raw/
+data/cache/
