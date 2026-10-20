@@ -10,6 +10,33 @@
 
 Can public real-world data (weather models, station observations, radar) produce probabilities that beat the prices on Kalshi's recurring weather markets, after fees?
 
+## Product framing
+
+| | |
+|---|---|
+| **User** | Retail prediction-market traders, who have no easy way to tell whether a posted price is fair |
+| **Problem** | Prices on recurring markets look like guesses. Is there a repeatable, public-data signal that a trader could use? |
+| **Hypothesis** | A calibrated model on free weather data can beat the market's price on Kalshi's liquid weather markets |
+| **Success criteria** | Better Brier score than the market's own price, and positive simulated profit after fees, both on days the model never saw. Win rate alone was rejected as a metric because cheap contracts can win rarely and still pay |
+| **Stop rule** | If two independent tests show no edge, stop and write it up rather than keep tuning |
+
+### Decisions and trade-offs
+
+| Decision | Why |
+|---|---|
+| Scope to the most liquid markets (NYC first) | Thin markets cannot absorb a real edge, and NYC had the deepest price and forecast history |
+| Validate labels against Kalshi's settlements before modelling | A wrong reading of the rules would have quietly corrupted every result |
+| Test in order of cost: day-ahead, then intraday, then radar | Each step was cheap to run and would have shown an edge early if one existed |
+| Backtest at the bid/ask with fees | Midpoint prices flatter any strategy |
+| Cut: smaller cities, a consumer dashboard, brand and landing page, real-money trading | None of it matters until the model beats the price |
+| Stop after the radar test | Two independent tests agreed. More tuning would have been hope, not evidence |
+
+### Guardrails
+
+No real money was traded. Everything is described as analytics, not advice. No credentials are stored in the repo, and raw data stays out of version control.
+
+Built solo with Claude Code as a pair programmer. I set the questions, the success criteria, and the stop rule, and reviewed every result.
+
 ## What I built
 
 - **Ingest:** Kalshi markets and hourly bid/ask history (stitching the live and historical endpoints), NWS daily climate reports, archived day-ahead forecasts from three weather models, station observations, and NEXRAD radar composites reduced to rain-coverage features.
@@ -36,6 +63,14 @@ Both are well calibrated, but the market is sharper. Two independent tests found
 - **Check the target before the model.** Reproducing the settlements first caught a trace-rain rule change and a legacy schema that would have silently corrupted training data.
 - **A fair test needs the trader's information.** My observation data understated the running high, so the intraday temperature test could not settle the question on its own. One-minute station data had spikes and still did not match the official high.
 - **Signal is not edge.** Radar features predicted rain well on their own, but the forecast already contained that information.
+
+## What I would do differently
+
+- **Check market efficiency first.** The cheapest test was always "is the price already calibrated?" It was. I would run that one-chart check before building any model, and only continue where the market looks weak.
+- **Get the trader's data before the intraday test.** I could not see what a live station display shows, so that test could not settle the question. I would confirm data parity first.
+- **Pick the market by how hard its data is to get**, not by how visible it is. NYC weather is the most-watched market, which is the worst place to look for an edge.
+
+If I picked this up again, I would test a less-watched market (for example Miami) or a different category before touching the model.
 
 ## Limitations
 
