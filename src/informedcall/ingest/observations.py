@@ -23,15 +23,16 @@ ONE_MINUTE_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos1min.py"
 OUT_DIR = Path("data/raw/obs")
 
 
-def fetch_station(station: str, start: date, end: date) -> pd.DataFrame:
+def fetch_station(station: str, start: date, end: date, variable: str = "tmpf") -> pd.DataFrame:
+    """Hourly METAR values of one variable (tmpf, or p01i for last-hour precipitation in inches)."""
     frames = []
     with httpx.Client(timeout=180) as client:
         for year in range(start.year, end.year + 1):
             lo = max(start, date(year, 1, 1))
             hi = min(end, date(year, 12, 31))
             params = [
-                ("station", station), ("data", "tmpf"), ("tz", "UTC"), ("format", "onlycomma"),
-                ("latlon", "no"), ("missing", "empty"), ("trace", "T"), ("direct", "no"),
+                ("station", station), ("data", variable), ("tz", "UTC"), ("format", "onlycomma"),
+                ("latlon", "no"), ("missing", "empty"), ("trace", "0.0001"), ("direct", "no"),
                 ("year1", lo.year), ("month1", lo.month), ("day1", lo.day),
                 ("year2", hi.year), ("month2", hi.month), ("day2", hi.day),
                 ("report_type", 3), ("report_type", 4),
@@ -41,8 +42,8 @@ def fetch_station(station: str, start: date, end: date) -> pd.DataFrame:
             frames.append(pd.read_csv(io.StringIO(resp.text)))
     df = pd.concat(frames, ignore_index=True)
     df["valid"] = pd.to_datetime(df["valid"], utc=True)
-    df["tmpf"] = pd.to_numeric(df["tmpf"], errors="coerce")
-    return df.dropna(subset=["tmpf"]).drop_duplicates(["valid"]).sort_values("valid").reset_index(drop=True)
+    df[variable] = pd.to_numeric(df[variable], errors="coerce")
+    return df.dropna(subset=[variable]).drop_duplicates(["valid"]).sort_values("valid").reset_index(drop=True)
 
 
 def fetch_one_minute(station: str, start: date, end: date) -> pd.DataFrame:
@@ -74,12 +75,15 @@ def main() -> None:
     parser.add_argument("--start", type=date.fromisoformat, default=date(2024, 1, 1))
     parser.add_argument("--end", type=date.fromisoformat, default=date.today())
     parser.add_argument("--one-minute", action="store_true", help="pull one-minute data instead of hourly")
+    parser.add_argument("--variable", default="tmpf", help="hourly variable, e.g. tmpf or p01i")
     args = parser.parse_args()
 
-    fetch = fetch_one_minute if args.one_minute else fetch_station
-    df = fetch(args.station, args.start, args.end)
+    if args.one_minute:
+        df = fetch_one_minute(args.station, args.start, args.end)
+    else:
+        df = fetch_station(args.station, args.start, args.end, args.variable)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = "1min" if args.one_minute else "asos"
+    suffix = "1min" if args.one_minute else ("asos" if args.variable == "tmpf" else args.variable)
     path = OUT_DIR / f"{args.station.lower()}_{suffix}.parquet"
     df.to_parquet(path, index=False)
     print(f"{args.station}: {len(df)} readings, {df['valid'].min()} -> {df['valid'].max()} -> {path}")

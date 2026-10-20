@@ -5,6 +5,10 @@ newer ones from /series/{series}/markets/{ticker}/candlesticks. Progress is chec
 interrupted run resumes where it left off.
 
     uv run python -m informedcall.ingest.candles KXHIGHNY --since 2024-02-01
+    uv run python -m informedcall.ingest.candles KXRAINNYC --floor-strike 0
+    uv run python -m informedcall.ingest.candles KXRAIN_NYC --series-ticker KXRAIN
+
+The positional name is the parquet file stem written by the market ingest.
 """
 
 import argparse
@@ -72,11 +76,16 @@ def main() -> None:
     parser.add_argument("series")
     parser.add_argument("--since", default="2024-01-01", help="only markets closing on/after")
     parser.add_argument("--limit", type=int, default=0, help="cap markets (for testing)")
+    parser.add_argument("--series-ticker", default="", help="Kalshi series if different from the file stem")
+    parser.add_argument("--floor-strike", type=float, default=None, help="keep only markets with this floor strike")
     args = parser.parse_args()
 
     markets = pd.read_parquet(MARKETS_DIR / f"{args.series}.parquet")
     markets = markets[markets["close_time"] >= pd.Timestamp(args.since, tz="UTC")]
     markets = markets.dropna(subset=["open_time", "close_time"])
+    if args.floor_strike is not None:
+        markets = markets[markets["floor_strike"].eq(args.floor_strike)]
+    series_ticker = args.series_ticker or args.series
     if args.limit:
         markets = markets.head(args.limit)
 
@@ -95,7 +104,7 @@ def main() -> None:
         pd.concat(frames + [pd.DataFrame(buffer)], ignore_index=True).to_parquet(path, index=False)
 
     with httpx.Client(timeout=30) as client, ThreadPoolExecutor(WORKERS) as pool:
-        futures = [pool.submit(fetch_candles, client, args.series, row) for _, row in todo.iterrows()]
+        futures = [pool.submit(fetch_candles, client, series_ticker, row) for _, row in todo.iterrows()]
         for i, fut in enumerate(futures, 1):
             rows = fut.result()
             buffer.extend(rows)

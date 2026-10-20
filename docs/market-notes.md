@@ -161,3 +161,28 @@ Hourly METAR readings (2024-01 onward):
 - The most-watched market (NYC daily high) looks efficient for anyone using public data at this granularity. The late-day Brier of 0.011 says the market is nearly certain once the day is mostly over.
 - Any edge more likely sits where traders have a harder time getting the data, not in re-deriving what a weather app already shows.
 - Candidates to test next: same-day radar nowcasting for rain, and satellite fog and cloud for marine-layer cities (LA, SF).
+
+## Radar nowcast test: NYC rain-today (2026-10-20)
+
+Hypothesis: same-day radar tells us about rain the price has not absorbed. Test: at 8, 11, and 14 local standard time, a logistic regression estimates whether rain will count today, using the day-ahead forecast alone ("no radar") or plus NEXRAD composite coverage around Central Park by distance ring and the western (upstream) sector ("radar"). Days where measurable rain had already fallen are treated as decided. Trained on 2025-01 to 2025-06, tested from 2025-07-01 on about 405 rain markets per hour. Radar features come from 1,973 Iowa Mesonet composites (`informedcall.ingest.radar`).
+
+| Hour (LST) | Variant | Brier model | Brier market | Bets | Avg P&L per contract |
+|---|---|---|---|---|---|
+| 8 | no radar | 0.0735 | 0.0624 | 88 | -2.2c |
+| 8 | radar | 0.0717 | 0.0624 | 85 | -0.8c |
+| 11 | no radar | 0.0692 | 0.0537 | 73 | -2.7c |
+| 11 | radar | 0.0717 | 0.0537 | 73 | -4.9c |
+| 14 | no radar | 0.0648 | 0.0470 | 78 | -4.6c |
+| 14 | radar | 0.0646 | 0.0470 | 76 | -8.0c |
+
+Ranking quality (AUC): at 11 LST no radar 0.968, radar 0.972, market 0.979. The other hours look the same.
+
+**Result: radar adds almost nothing, and the market beats both variants at every hour. Simulated trading loses.**
+
+- Radar is not broken. Among days not yet decided at 11 LST, the share of radar area showing rain between 100 and 200 km out predicts rain alone with AUC 0.76 (nearer rings are weaker). But the day-ahead forecast alone scores 0.93, so radar mostly repeats what the forecast already knows, and it adds about 0.004 AUC to the model.
+- The market's AUC (0.97 to 0.98) is above both, so whoever sets the price is using more or better information than we are.
+- Limits of this test: coarse ring and sector features only (no storm motion or trend between scans), three decision times, and about 180 training days. A richer radar model could do better, but the gap to the market is large.
+
+## Running conclusion
+
+Two independent tests (intraday temperature with hourly and one-minute observations, and same-day rain with radar) found no lag between public weather data and Kalshi prices in NYC. NYC weather markets look efficient for anyone using public data at this level. The honest framing is that a calibrated model of public weather data does not beat these prices, and the notes show how that was tested.
