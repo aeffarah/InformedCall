@@ -88,3 +88,19 @@ Pulled NYC markets and NWS daily climate reports (Iowa Mesonet, station KNYC = C
 - About 14.5% of markets are legacy (`HIGHNY-...` tickers) with no strike fields, so thresholds come from the subtitle.
 - 3 legacy subtitles are unparseable ("56°", "<94°", "96°"). 2 legacy markets mislabel the threshold ("42° or higher" resolved No at a high of 42). Both are negligible.
 - The Mesonet feed has gaps (for example 2025-06-02 and 06-03 have no precip value). Missing days should be dropped, not guessed.
+
+## Forecast archive (Open-Meteo previous runs, NYC Central Park, 2026-10-20)
+
+Day-ahead hourly forecasts (`*_previous_day1`), collapsed to a daily high over the NWS climate day (midnight to midnight local standard time, so 1am to 1am in summer).
+
+| Model | Archive starts | Days scored | Bias | MAE | RMSE |
+|---|---|---|---|---|---|
+| GFS (`gfs_seamless`) | 2024-01-19 | 1,002 | -0.6°F | 2.7°F | 3.5°F |
+| ECMWF IFS (`ecmwf_ifs025`) | 2024-02-04 | 987 | -1.0°F | 2.8°F | 3.6°F |
+| NBM (`ncep_nbm_conus`) | 2024-10-09 | 739 | -0.6°F | 2.5°F | 3.9°F |
+| 3-model mean (days all three exist) | 2024-10-09 | 739 | -0.7°F | 2.2°F | 2.9°F |
+
+- A 2°F-wide bracket against a typical error of about 3°F means no bracket is ever likely above roughly 25-30%. Edge will come from calibrated widths and bias, not confident calls.
+- Cold bias is expected: hourly values understate a true daily maximum. NBM bias varies by season (about -1.4°F in winter, +0.5°F in fall), so calibrate by season.
+- NBM has the lowest MAE but a higher RMSE than the mean, which suggests a few large misses. Worth inspecting before trusting it.
+- Backtest window is roughly 2024-10 onward for NBM, 2024-02 onward for GFS and ECMWF.
