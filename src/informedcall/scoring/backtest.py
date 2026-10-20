@@ -34,25 +34,30 @@ SURFACE, INK, INK_2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#8987
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 
 
-def snapshot_quotes(candles: pd.DataFrame, days: pd.Series, tickers: pd.Series) -> pd.DataFrame:
-    """Bid and ask per ticker at decision time, forward-filling quiet hours."""
+def quotes_at(candles: pd.DataFrame, decision: pd.DataFrame) -> pd.DataFrame:
+    """Bid and ask per ticker at its decision time, forward-filling quiet hours.
+
+    `decision` has one row per ticker with a UTC timestamp column `ts`.
+    """
     c = candles.copy()
     for col in ("bid_close", "ask_close"):
         c[col] = pd.to_numeric(c[col], errors="coerce")
     c = c.sort_values(["ticker", "end_ts"])
     c[["bid_close", "ask_close"]] = c.groupby("ticker")[["bid_close", "ask_close"]].ffill()
-    decision = (
-        pd.DataFrame({"ticker": tickers.values, "day": days.values})
-        .drop_duplicates("ticker")
-        .assign(ts=lambda d: d["day"] - pd.Timedelta(days=1) + pd.Timedelta(hours=DECISION_HOUR_UTC))
-    )
-    decision["ts"] = decision["ts"].dt.tz_localize("UTC")
     merged = c.merge(decision[["ticker", "ts"]], on="ticker")
     merged = merged[merged["end_ts"] <= merged["ts"]]
     last = merged.groupby("ticker").tail(1)
     return last[["ticker", "bid_close", "ask_close"]].rename(
         columns={"bid_close": "bid", "ask_close": "ask"}
     )
+
+
+def day_before_decision(pred: pd.DataFrame) -> pd.DataFrame:
+    """Decision time for the day-ahead backtest: 23:00 UTC the day before the event."""
+    decision = pred.drop_duplicates("ticker")[["ticker", "day"]].copy()
+    ts = decision["day"] - pd.Timedelta(days=1) + pd.Timedelta(hours=DECISION_HOUR_UTC)
+    decision["ts"] = ts.dt.tz_localize("UTC")
+    return decision
 
 
 def fee(price: np.ndarray) -> np.ndarray:
@@ -129,7 +134,7 @@ def main() -> None:
 
     pred = pd.read_parquet(PREDICTIONS)
     pred = pred[pred["day"] >= pd.Timestamp(args.split)]
-    quotes = snapshot_quotes(pd.read_parquet(CANDLES), pred["day"], pred["ticker"])
+    quotes = quotes_at(pd.read_parquet(CANDLES), day_before_decision(pred))
     df = pred.merge(quotes, on="ticker").dropna(subset=["bid", "ask"]).copy()
     df["p_market"] = (df["bid"] + df["ask"]) / 2
     print(f"Test markets with quotes at decision time: {len(df)} of {len(pred)} ({df['day'].nunique()} days)")

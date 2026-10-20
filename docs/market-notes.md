@@ -137,3 +137,27 @@ Test period 2025-07-01 onward, 2,484 bracket markets with quotes (414 days), dec
 - Use model disagreement (spread) to widen or narrow each day's distribution.
 - Weight models by recent skill, and add an official NWS or NBM point forecast.
 - Re-test on a longer window when the archive grows.
+
+## Intraday test: does the price lag the observations? (2026-10-20)
+
+Hypothesis: as the event day unfolds, Kalshi prices react slowly to the temperature already recorded. Test: at 12, 14, 16, and 18 local standard time (1pm to 7pm in summer), predict the final high from the day-ahead blend, the highest reading so far, and the latest reading (per-hour regression, truncated at the running max), then compare with the market price at that hour. Test period 2025-07-01 onward, bets need 5 cents of edge after fees.
+
+Hourly METAR readings (2024-01 onward):
+
+| Hour (LST) | Brier model | Brier market | Bets | Avg P&L per contract |
+|---|---|---|---|---|
+| 12 | 0.1015 | 0.0751 | 1,026 | -3.2c |
+| 14 | 0.0740 | 0.0422 | 805 | -4.9c |
+| 16 | 0.0587 | 0.0164 | 745 | -2.3c |
+| 18 | 0.0558 | 0.0110 | 756 | -1.1c |
+
+**The market beats the model at every hour, and the gap widens as the day goes on. No lag found.** But this test cannot settle the question, because our observations are too coarse:
+
+- Hourly readings understate the official high (on average the final high is 0.8F above the highest hourly reading at 7pm). A trader watching live station data sees the running maximum more precisely than we do.
+- One-minute data (Mesonet `asos1min`, starts about 2025-01, about 78% of minutes present) did not fix this. It contains spikes of up to 19F around 06:00 UTC (likely a nightly sensor routine), and even after removing them the official high is below the one-minute maximum 31% of the time. The official daily high is not simply the highest one-minute reading.
+- Faithfully rebuilding the running maximum probably needs the 5-minute or 6-hour maximum groups that NWS uses, which we have not found a backtestable source for.
+
+### What this implies
+- The most-watched market (NYC daily high) looks efficient for anyone using public data at this granularity. The late-day Brier of 0.011 says the market is nearly certain once the day is mostly over.
+- Any edge more likely sits where traders have a harder time getting the data, not in re-deriving what a weather app already shows.
+- Candidates to test next: same-day radar nowcasting for rain, and satellite fog and cloud for marine-layer cities (LA, SF).
