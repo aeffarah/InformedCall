@@ -44,4 +44,13 @@ Rules and quirks for each market are tracked in [docs/market-notes.md](docs/mark
 
 ## Setup
 
-Secrets live in a local, git-ignored `.env` file. Copy `.env.example` to `.env` and fill it in. Never commit credentials.
+Secrets live in a local, git-ignored `.env` file. Copy `.env.example` to `.env` and fill it in. Never commit credentials. Kalshi market data needs no key.
+
+Requires [uv](https://docs.astral.sh/uv/). Then:
+
+```
+uv sync
+uv run python -m informedcall.ingest.kalshi KXHIGHNY
+uv run python -m informedcall.ingest.kalshi KXRAIN --suffix=-NYC
+uv run python -m informedcall.ingest.actuals KNYC --start 2021
+```

@@ -65,3 +65,26 @@ LA, SF, and Miami rain look monthly (`KXRAINLAXM`, `KXRAINSFOM`, `KXRAINMIAM`), 
 - NYC is the deepest (about 2.8 years of overlap), then Miami (about 2.4), LA (about 1.7), SF (about 9 months).
 - Start with NYC, then Miami. LA and SF are thin for now.
 - Rain history needs stitching across `KXRAINNYC` and `KXRAIN`. Check whether the rule text changed between them.
+
+## Validation of the ingest (2026-10-20)
+
+Pulled NYC markets and NWS daily climate reports (Iowa Mesonet, station KNYC = CLINYC) and checked whether our reading of the rules reproduces Kalshi's recorded results (`informedcall.scoring.labels`).
+
+| Check | Result |
+|---|---|
+| NYC high temp (9,757 markets, 2021-08 to now) | 2 disagreements (0.02%) |
+| NYC rain, new `KXRAIN` series (92 markets) | 0 disagreements |
+| NYC rain, old `KXRAINNYC` "greater than 0" markets (526) | 2 disagreements, both days missing from the Mesonet feed |
+
+### Rain rules differ by series
+- Old `KXRAINNYC` ("precipitation recorded at Central Park"): a **trace counts as rain**. About 100% of trace days since 2025 resolved Yes.
+- New `KXRAIN` (CLINYC): a **trace counts as 0**. Every trace day resolved No.
+- Labels must follow each series' own rule. Mixing them would corrupt training data.
+- The old series was a ladder of thresholds per day (>0, >0.05, >0.1 ... >9). Only the `floor_strike == 0` market is rain-today. Threshold wording also varies slightly ("according to the NWS Daily Climate Report", "0.00").
+- Old rain data comes in two chunks: 2021-09 to 2022 and 2025 to 2026-07. There is nothing in between.
+
+### High temp quirks
+- Subtitles vary: "87° or higher/above", "80° or below/lower", "81° to 82°", and legacy half-degree thresholds ("51.5° or higher"). Plain numeric comparisons work because the reported high is a whole number.
+- About 14.5% of markets are legacy (`HIGHNY-...` tickers) with no strike fields, so thresholds come from the subtitle.
+- 3 legacy subtitles are unparseable ("56°", "<94°", "96°"). 2 legacy markets mislabel the threshold ("42° or higher" resolved No at a high of 42). Both are negligible.
+- The Mesonet feed has gaps (for example 2025-06-02 and 06-03 have no precip value). Missing days should be dropped, not guessed.
