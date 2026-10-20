@@ -2,8 +2,10 @@
 
 Decision time is 23:00 UTC the day before the event (6-7pm New York), using the last hourly
 candle quotes at or before it. Buying Yes pays the ask, buying No pays 1 - bid, and the taker
-fee follows Kalshi's quadratic schedule, assumed here as ceil(0.07 * P * (1 - P)) per
-contract in cents. Verify the fee schedule before trusting any P&L number.
+fee follows Kalshi's quadratic schedule: ceil(0.07 * C * P * (1 - P)) in cents for C contracts
+(series fee multiplier is 1 for these series). Third-party sources agree on this; Kalshi's own
+schedule PDF was not checked. Rounding is applied per order, so charging it per single
+contract here is conservative.
 
     uv run python -m informedcall.scoring.backtest --split 2025-07-01
 """
@@ -84,16 +86,17 @@ def reliability(p: pd.Series, outcome: pd.Series) -> pd.DataFrame:
 def draw_chart(rel_model: pd.DataFrame, rel_market: pd.DataFrame, brier: dict, n: int, start: str) -> None:
     fig, ax = plt.subplots(figsize=(8, 5.2), dpi=200, facecolor=SURFACE)
     ax.set_facecolor(SURFACE)
-    ax.plot([0, 0.6], [0, 0.6], color=AXIS, lw=1, ls=(0, (4, 4)), zorder=1)
+    ax.plot([0, 0.75], [0, 0.75], color=AXIS, lw=1, ls=(0, (4, 4)), zorder=1)
     for rel, color, label in ((rel_market, ORANGE, "Kalshi price"), (rel_model, BLUE, "InformedCall model")):
         ax.plot(rel["predicted"], rel["observed"], color=color, lw=2, zorder=2)
         ax.scatter(rel["predicted"], rel["observed"], s=34, color=color, edgecolor=SURFACE, linewidth=1.5, zorder=3, label=label)
         end = rel.iloc[-1]
-        ax.annotate(label, (end["predicted"], end["observed"]), xytext=(8, -4 if color == BLUE else 6),
-                    textcoords="offset points", color=INK_2, fontsize=9)
-    ax.text(0.57, 0.585, "perfectly calibrated", color=MUTED, fontsize=8, rotation=0, ha="right", va="top")
-    ax.set_xlim(0, 0.62)
-    ax.set_ylim(0, 0.62)
+        ax.annotate(f"{label} ({int(end['n'])} markets)", (end["predicted"], end["observed"]),
+                    xytext=(-10, -16 if color == BLUE else 10), textcoords="offset points",
+                    color=INK_2, fontsize=9, ha="right")
+    ax.text(0.40, 0.44, "perfectly calibrated", color=MUTED, fontsize=8, rotation=34, ha="center", va="center")
+    ax.set_xlim(0, 0.75)
+    ax.set_ylim(0, 0.75)
     ax.set_xlabel("Probability stated", color=INK_2, fontsize=10)
     ax.set_ylabel("How often it happened", color=INK_2, fontsize=10)
     ax.xaxis.set_major_formatter(lambda v, _: f"{v:.0%}")
@@ -109,11 +112,11 @@ def draw_chart(rel_model: pd.DataFrame, rel_market: pd.DataFrame, brier: dict, n
     fig.text(0.06, 0.965, "NYC daily high: do the stated odds come true?", color=INK, fontsize=13, fontweight="bold", va="top")
     fig.text(
         0.06, 0.915,
-        f"{n:,} bracket markets since {start}, priced 6-7pm the day before. "
-        f"Brier score (lower is better): model {brier['model']:.4f}, market {brier['market']:.4f}.",
-        color=INK_2, fontsize=9, va="top",
+        f"{n:,} bracket markets since {start}, priced 6-7pm the day before.\n"
+        f"Brier score (lower is better): model {brier['model']:.4f}, Kalshi price {brier['market']:.4f}.",
+        color=INK_2, fontsize=9, va="top", linespacing=1.5,
     )
-    fig.subplots_adjust(left=0.1, right=0.95, top=0.86, bottom=0.12)
+    fig.subplots_adjust(left=0.1, right=0.95, top=0.84, bottom=0.12)
     CHART.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(CHART, facecolor=SURFACE)
     plt.close(fig)

@@ -104,3 +104,36 @@ Day-ahead hourly forecasts (`*_previous_day1`), collapsed to a daily high over t
 - Cold bias is expected: hourly values understate a true daily maximum. NBM bias varies by season (about -1.4°F in winter, +0.5°F in fall), so calibrate by season.
 - NBM has the lowest MAE but a higher RMSE than the mean, which suggests a few large misses. Worth inspecting before trusting it.
 - Backtest window is roughly 2024-10 onward for NBM, 2024-02 onward for GFS and ECMWF.
+
+## Fees (2026-10-20)
+
+- `KXHIGHNY`, `KXRAIN`, `KXRAINNYC`, and `KXHIGHMIA` all report `fee_type=quadratic`, `fee_multiplier=1` via the API.
+- Taker fee per third-party sources: `ceil(0.07 * C * P * (1 - P))` cents for C contracts at price P. It peaks at 50 cents (about 1.75 cents per contract) and falls toward the extremes.
+- Maker fees: sources disagree (25% of taker, or none on most markets). Not modeled; the backtest assumes taker-only.
+- Kalshi's own fee schedule PDF returned HTTP 429 and was not read. Confirm against it before any real trading.
+- The backtest rounds the fee up per single contract, which slightly overstates cost compared with one larger order.
+
+## First backtest: NYC high temp vs Kalshi price (2026-10-20)
+
+Test period 2025-07-01 onward, 2,484 bracket markets with quotes (414 days), decision time 23:00 UTC the day before. Model trained only on earlier days.
+
+| | Brier (lower is better) |
+|---|---|
+| Baseline model (blended forecasts, seasonal bias, normal error) | 0.1278 |
+| Kalshi price (bid/ask midpoint) | 0.1076 |
+
+- Both are well calibrated through about 35%, but **the market is sharper**: it separates likely from unlikely brackets better than our model does.
+- The model's top bin is overconfident: 42 markets it priced near 67% happened only 36% of the time.
+- Simulated bets (edge of at least 5 cents after taker fees): 1,198 bets, 37% win rate, **-2.5 cents per contract on average**, roughly -30 contract-dollars in total. Both sides lose (yes -2.3c, no -2.7c). No edge from this model.
+- Chart: [docs/img/calibration_nyc_high.png](img/calibration_nyc_high.png).
+
+### Why the baseline is not enough
+- It uses a fixed error width per season, so it cannot tell a confident day from an uncertain one.
+- Its point forecast is built from hourly model output, which understates the daily high, and it uses day-ahead runs only.
+- The market also sees the latest model runs, official NWS forecasts, and local knowledge.
+
+### Ideas to close the gap (not yet tried)
+- Use the most recent model run available at decision time instead of only the day-ahead run.
+- Use model disagreement (spread) to widen or narrow each day's distribution.
+- Weight models by recent skill, and add an official NWS or NBM point forecast.
+- Re-test on a longer window when the archive grows.
