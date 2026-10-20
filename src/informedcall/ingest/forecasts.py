@@ -79,6 +79,19 @@ def daily_highs_f(hourly: pd.DataFrame, utc_offset: int) -> pd.DataFrame:
     return out.rename_axis("day").reset_index()
 
 
+def daily_precip_mm(hourly: pd.DataFrame, utc_offset: int) -> pd.DataFrame:
+    """Forecast precipitation total in mm per model, over the NWS climate day."""
+    shifted = hourly.assign(day=(hourly["time"] + pd.Timedelta(hours=utc_offset)).dt.date)
+    cols = [c for c in hourly if c.startswith("precipitation_previous_day1")]
+    daily = shifted.groupby("day")[cols].agg(["sum", "count"])
+    out = pd.DataFrame(index=daily.index)
+    for col in cols:
+        full_day = daily[(col, "count")] >= 24
+        model = col.removeprefix("precipitation_previous_day1_")
+        out[f"precip_mm_{model}"] = daily[(col, "sum")].where(full_day)
+    return out.rename_axis("day").reset_index()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("name", help="short location name, e.g. nyc")

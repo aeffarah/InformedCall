@@ -224,3 +224,4 @@ secrets/
 *.pem
 data/raw/
 data/cache/
+data/processed/
